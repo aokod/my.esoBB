@@ -62,22 +62,22 @@ function init()
 					}
 				}
 			}
-			// Prepare a list of SMTP email authentication options.
-			$this->smtpOptions = array(
-				false => "None at all (internal email)",
-				"ssl" => "SSL",
-				"tls" => "TLS"
-			);
-			// Prepare a list of MySQL storage engines.
-			$this->storageEngines = array(
-				"InnoDB" => "InnoDB (recommended)",
-				"MyISAM" => "MyISAM (less efficient, smaller)"
-			);
-			// Prepare a list of hashing algorithms.
-			$this->hashingMethods = array(
-				"bcrypt" => "bcrypt (recommended)",
-				"md5" => "MD5 (less secure, faster)"
-			);
+//			// Prepare a list of SMTP email authentication options.
+//			$this->smtpOptions = array(
+//				false => "None at all (internal email)",
+//				"ssl" => "SSL",
+//				"tls" => "TLS"
+//			);
+//			// Prepare a list of MySQL storage engines.
+//			$this->storageEngines = array(
+//				"InnoDB" => "InnoDB (recommended)",
+//				"MyISAM" => "MyISAM (less efficient, smaller)"
+//			);
+//			// Prepare a list of hashing algorithms.
+//			$this->hashingMethods = array(
+//				"bcrypt" => "bcrypt (recommended)",
+//				"md5" => "MD5 (less secure, faster)"
+//			);
 			
 			// If the form has been submitted...
 			if (isset($_POST["forumTitle"])) {
@@ -89,31 +89,32 @@ function init()
 				$_SESSION["install"] = array(
 					"forumTitle" => $_POST["forumTitle"],
 					"forumDescription" => $_POST["forumDescription"],
+					"forumURL" => $_POST["forumURL"], // custom subdir name
 					"language" => $_POST["language"],
 					// DB settings
-					"mysqlHost" => $_POST["mysqlHost"],
-					"mysqlUser" => $_POST["mysqlUser"],
-					"mysqlPass" => $_POST["mysqlPass"],
-					"mysqlDB" => $_POST["mysqlDB"],
+//					"mysqlHost" => $_POST["mysqlHost"],
+//					"mysqlUser" => $_POST["mysqlUser"],
+//					"mysqlPass" => $_POST["mysqlPass"],
+//					"mysqlDB" => $_POST["mysqlDB"],
 					// SMTP settings
-					"sendEmail" => $_POST["sendEmail"],
-					"smtpAuth" => $_POST["smtpAuth"],
-					"smtpHost" => $_POST["smtpHost"],
-					"smtpPort" => $_POST["smtpPort"],
-					"smtpUser" => $_POST["smtpUser"],
-					"smtpPass" => $_POST["smtpPass"],
+//					"sendEmail" => $_POST["sendEmail"],
+//					"smtpAuth" => $_POST["smtpAuth"],
+//					"smtpHost" => $_POST["smtpHost"],
+//					"smtpPort" => $_POST["smtpPort"],
+//					"smtpUser" => $_POST["smtpUser"],
+//					"smtpPass" => $_POST["smtpPass"],
 					// Root user settings
 					"adminUser" => $_POST["adminUser"],
 					"adminEmail" => $_POST["adminEmail"],
 					"adminPass" => $_POST["adminPass"],
 					"adminConfirm" => $_POST["adminConfirm"],
 					// Advanced settings
-					"tablePrefix" => $_POST["tablePrefix"],
-					"characterEncoding" => $_POST["characterEncoding"],
-					"storageEngine" => $_POST["storageEngine"],
-					"hashingMethod" => $_POST["hashingMethod"],
-					"baseURL" => $_POST["baseURL"],
-					"friendlyURLs" => $_POST["friendlyURLs"]
+//					"tablePrefix" => $_POST["tablePrefix"],
+//					"characterEncoding" => $_POST["characterEncoding"],
+//					"storageEngine" => $_POST["storageEngine"],
+//					"hashingMethod" => $_POST["hashingMethod"],
+//					"baseURL" => $_POST["baseURL"],
+//					"friendlyURLs" => $_POST["friendlyURLs"]
 				);
 				$this->step("install");
 			}
@@ -143,19 +144,20 @@ function init()
 		
 			// If they clicked the 'go to my forum' button, log them in as the administrator and redirect to the forum.
 			if (isset($_POST["finish"])) {
-				include "../config/config.php";
-				$user = $_SESSION["user"];
-				session_destroy();
-				session_name("{$config["cookieName"]}_Session");
-				session_start();
-				$_SESSION["user"] = $user;
-				header("Location: ../");
+//				include "../config/config.php";
+//				$user = $_SESSION["user"];
+//				session_destroy();
+//				session_name("{$config["cookieName"]}_Session");
+//				session_start();
+//				$_SESSION["user"] = $user;
+//				header("Location: ../");
+				// tba: redirect to new forum
 				exit;
 			}
 			// Lock the installer.
-			if (($handle = fopen("lock", "w")) === false)
-				$this->errors[1] = "Your forum can't seem to lock the installer. Please manually delete the install folder, otherwise your forum's security will be vulnerable.";
-			else fclose($handle);
+//			if (($handle = fopen("lock", "w")) === false)
+//				$this->errors[1] = "Your forum can't seem to lock the installer. Please manually delete the install folder, otherwise your forum's security will be vulnerable.";
+//			else fclose($handle);
 	}
 
 }
@@ -179,10 +181,10 @@ function suggestBaseUrl()
 }
 
 // Generate a default value for whether or not to use friendly URLs, depending on if the REQUEST_URI variable is available.
-function suggestFriendlyUrls()
-{
-	return !empty($_SERVER["REQUEST_URI"]);
-}
+//function suggestFriendlyUrls()
+//{
+//	return !empty($_SERVER["REQUEST_URI"]);
+//}
 
 // Perform a MySQL query, and log it.
 public function query($link, $query)
@@ -216,50 +218,88 @@ function doInstall()
 	global $config;
 	
 	// Make sure the base URL has a trailing slash.
-	if (substr($_SESSION["install"]["baseURL"], -1) != "/") $_SESSION["install"]["baseURL"] .= "/";
-	
+//	if (substr($_SESSION["install"]["baseURL"], -1) != "/") $_SESSION["install"]["baseURL"] .= "/";
+
+	$domainName = "myeso.org";
+	// Make sure the forum URL is valid.
+	$subDomainName = validateForumURL($_SESSION["install"]["forumURL"]);
+
 	// Make sure the language exists.
 	if (!file_exists("../languages/{$_SESSION["install"]["language"]}.php"))
 		$_SESSION["install"]["language"] = "English (casual)";
 
-	// Make sure there is a character set.
-	if (empty($_SESSION["install"]["characterEncoding"]))
-		$_SESSION["install"]["characterEncoding"] = "utf8mb4";
+	// Since every forum will be hosted on a subdomain, we need to figure out the baseURL using subDomainName.
+	$baseURL = $_SESSION["install"]["baseURL"] = "https://" . $subDomainName . "." . $domainName . "/";
+	// cookieName will need to be determined from subDomainName, as there may be several forums with the same forumTitle.
+	// tba
+	$cookieName = preg_replace(array("/\s+/", "/[^\w]/"), array("_", ""), desanitize($_SESSION["install"]["forumTitle"]));
 	
 	// Prepare the $config variable with the installation settings.
 	$config = array(
 		"forumTitle" => $_SESSION["install"]["forumTitle"],
 		"forumDescription" => $_SESSION["install"]["forumDescription"],
 		"language" => $_SESSION["install"]["language"],
-		// DB settings
-		"mysqlHost" => desanitize($_SESSION["install"]["mysqlHost"]),
+		// Every forum will rely on a default config, so DB host is unnecessary.
+//		"mysqlHost" => desanitize($_SESSION["install"]["mysqlHost"]),
 		"mysqlUser" => desanitize($_SESSION["install"]["mysqlUser"]),
 		"mysqlPass" => desanitize($_SESSION["install"]["mysqlPass"]),
+		// Every forum has its own database.
 		"mysqlDB" => desanitize($_SESSION["install"]["mysqlDB"]),
 		// SMTP settings
-		"emailFrom" => "do_not_reply@{$_SERVER["HTTP_HOST"]}",
-		"sendEmail" => !empty($_SESSION["install"]["sendEmail"]),
+//		"emailFrom" => "do_not_reply@{$_SERVER["HTTP_HOST"]}",
+//		"sendEmail" => !empty($_SESSION["install"]["sendEmail"]),
 		// Advanced settings
-		"tablePrefix" => desanitize($_SESSION["install"]["tablePrefix"]),
-		"characterEncoding" => desanitize($_SESSION["install"]["characterEncoding"]),
-		"storageEngine" => desanitize($_SESSION["install"]["storageEngine"]),
-		"hashingMethod" => desanitize($_SESSION["install"]["hashingMethod"]),
-		"baseURL" => $_SESSION["install"]["baseURL"],
-		"cookieName" => preg_replace(array("/\s+/", "/[^\w]/"), array("_", ""), desanitize($_SESSION["install"]["forumTitle"])),
-		"useFriendlyURLs" => !empty($_SESSION["install"]["friendlyURLs"]),
-		"useModRewrite" => !empty($_SESSION["install"]["friendlyURLs"]) and function_exists("apache_get_modules") and in_array("mod_rewrite", apache_get_modules())
+		// These will be defined in the config.default.php.
+//		"tablePrefix" => desanitize($_SESSION["install"]["tablePrefix"]),
+//		"characterEncoding" => desanitize($_SESSION["install"]["characterEncoding"]),
+//		"storageEngine" => desanitize($_SESSION["install"]["storageEngine"]),
+//		"hashingMethod" => desanitize($_SESSION["install"]["hashingMethod"]),
+		"baseURL" => $baseURL,
+		"cookieName" => $cookieName,
+//		"useFriendlyURLs" => !empty($_SESSION["install"]["friendlyURLs"]),
+//		"useModRewrite" => !empty($_SESSION["install"]["friendlyURLs"]) and function_exists("apache_get_modules") and in_array("mod_rewrite", apache_get_modules())
 	);
-	$smtpConfig = array(
-		"smtpAuth" => desanitize($_SESSION["install"]["smtpAuth"]),
-		"smtpHost" => desanitize($_SESSION["install"]["smtpHost"]),
-		"smtpPort" => desanitize($_SESSION["install"]["smtpPort"]),
-		"smtpUser" => desanitize($_SESSION["install"]["smtpUser"]),
-		"smtpPass" => desanitize($_SESSION["install"]["smtpPass"]),
-	);
-	if (!empty($_SESSION["install"]["smtpAuth"])) $config = array_merge($config, $smtpConfig);
+
+	// SMTP will be added in the near future.
+//	$smtpConfig = array(
+//		"smtpAuth" => desanitize($_SESSION["install"]["smtpAuth"]),
+//		"smtpHost" => desanitize($_SESSION["install"]["smtpHost"]),
+//		"smtpPort" => desanitize($_SESSION["install"]["smtpPort"]),
+//		"smtpUser" => desanitize($_SESSION["install"]["smtpUser"]),
+//		"smtpPass" => desanitize($_SESSION["install"]["smtpPass"]),
+//	);
+//	if (!empty($_SESSION["install"]["smtpAuth"])) $config = array_merge($config, $smtpConfig);
 	
+	// Create the MySQL user and pass.
+	// There needs to be a MySQL user that is only able to create databases and users.
+	$mysqlHost = "localhost";
+	$mysqlUser = "myeso_createdb";
+	$mysqlPass = "pass";
+	$characterEncoding = "utfmb4";
+
+	$createDb = @mysqli_connect($mysqlHost, $mysqlUser, $mysqlPass, $config["mysqlDB"]);
+	mysqli_set_charset($createDb, $characterEncoding);
+
+	// Database user will be the subdomain name prefixed by "myeso_user_" for identification purposes.
+	$newUser = "myeso_user_" . $subDomainName;
+	// Generate a 32 character length pseudo random password.
+	$newPass = bin2hex(openssl_random_pseudo_bytes(16));
+	// do a similar thing for db name
+	$newDB = "myeso_db_" . $subDomainName;
+
+//	include "query_createDb.php";
+	$createQueries = array();
+	$createQueries[] = "CREATE USER '{$newUser}'@'{$mysqlHost}' IDENTIFIED BY '{$newPass}'";
+	$createQueries[] = "CREATE DATABASE {$newDB}";
+	$createQueries[] = "GRANT ALL PRIVILEGES ON {$newDB}.* TO '{$newUser}'@'{$mysqlHost}'";
+	foreach ($createQueries as $query) {
+		if (!$this->query($createDb, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($createDb)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
+	}
+	// Make sure to close the connection!
+	$createDb->close();
+ 
 	// Connect to the MySQL database.
-	$db = @mysqli_connect($config["mysqlHost"], $config["mysqlUser"], $config["mysqlPass"], $config["mysqlDB"]);
+	$db = @mysqli_connect($mysqlHost, $newUser, $newPass, $newDB);
 	mysqli_set_charset($db, $config["characterEncoding"]);
 	
 	// Run the queries one by one and halt if there's an error!
@@ -355,10 +395,12 @@ function validateInfo()
 	// Password confirmation must match.
 	if ($_POST["adminPass"] != $_POST["adminConfirm"]) $errors["adminConfirm"] = "Your passwords do not match";
 	
+	$mysqlHost = "definehost";
 	// Try and connect to the database.
-	$db = @mysqli_connect($_POST["mysqlHost"], $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);
-	if (!$db) $errors["mysql"] = "The installer could not connect to the MySQL server. The error returned was:<br/> " . mysqli_connect_error();
-	
+	$db = @mysqli_connect($mysqlHost, $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);
+	if (!$db) $errors["mysql"] = "The installer could not connect to the MySQL server.";
+//	The error returned was:<br/> " . mysqli_connect_error();
+
 	// Check to see if there are any conflicting tables already in the database.
 	// If there are, show an error with a hidden input. If the form is submitted again with this hidden input,
 	// proceed to perform the installation regardless.
@@ -377,10 +419,16 @@ function validateInfo()
 	if (count($errors)) return $errors;
 }
 
+// Validate the URL of a forum.
+function validateForumURL($forumURL) {
+	//tba
+}
+
 // Redirect to a specific step.
 function step($step)
 {
-	header("Location: index.php?step=$step");
+	//tba
+	header("Location: create.php?step=$step");
 	exit;
 }
 
@@ -399,15 +447,15 @@ function fatalChecks()
 	if (!extension_loaded("mysqli")) $errors[] = "You must have <strong>MySQL 5.7 or greater</strong> installed and the <a href='https://php.net/manual/en/mysqli.installation.php' target='_blank'>MySQLi extension enabled in PHP</a>.<br/><small>Please install/upgrade both of these requirements or request that your host or administrator install them.</small>";
 	
 	// Check file permissions.
-	$fileErrors = array();
-	$filesToCheck = array("", "avatars/", "plugins/", "skins/", "config/", "install/", "upgrade/");
-	foreach ($filesToCheck as $file) {
-		if ((!file_exists("../$file") and !@mkdir("../$file")) or (!is_writable("../$file") and !@chmod("../$file", 0777))) {
-			$realPath = realpath("../$file");
-			$fileErrors[] = $file ? $file : substr($realPath, strrpos($realPath, "/") + 1) . "/";
-		}
-	}
-	if (count($fileErrors)) $errors[] = "The following files/folders are not writeable: <strong>" . implode("</strong>, <strong>", $fileErrors) . "</strong>.<br/><small>To resolve this, you must navigate to these files/folders in your FTP client and <strong>chmod</strong> them to <strong>777</strong> or <strong>755</strong> (recommended).</small>";
+//	$fileErrors = array();
+//	$filesToCheck = array("", "avatars/", "plugins/", "skins/", "config/", "install/", "upgrade/");
+//	foreach ($filesToCheck as $file) {
+//		if ((!file_exists("../$file") and !@mkdir("../$file")) or (!is_writable("../$file") and !@chmod("../$file", 0777))) {
+//			$realPath = realpath("../$file");
+//			$fileErrors[] = $file ? $file : substr($realPath, strrpos($realPath, "/") + 1) . "/";
+//		}
+//	}
+//	if (count($fileErrors)) $errors[] = "The following files/folders are not writeable: <strong>" . implode("</strong>, <strong>", $fileErrors) . "</strong>.<br/><small>To resolve this, you must navigate to these files/folders in your FTP client and <strong>chmod</strong> them to <strong>777</strong> or <strong>755</strong> (recommended).</small>";
 	
 	// Check for PCRE UTF-8 support.
 	if (!@preg_match("//u", "")) $errors[] = "<strong>PCRE UTF-8 support</strong> is not enabled.<br/><small>Please ensure that your PHP installation has PCRE UTF-8 support compiled into it.</small>";
@@ -424,13 +472,13 @@ function warningChecks()
 	$errors = array();
 	
 	// We don't like register_globals!
-	if (ini_get("register_globals")) $errors[] = "PHP's <strong>register_globals</strong> setting is enabled.<br/><small>While your forum can run with this setting on, it is recommended that it be turned off to increase security and to prevent your forum from having problems.</small>";
+//	if (ini_get("register_globals")) $errors[] = "PHP's <strong>register_globals</strong> setting is enabled.<br/><small>While your forum can run with this setting on, it is recommended that it be turned off to increase security and to prevent your forum from having problems.</small>";
 	
 	// Can we open remote URLs as files?
-	if (!ini_get("allow_url_fopen")) $errors[] = "The PHP setting <strong>allow_url_fopen</strong> is not on.<br/><small>Without this, avatars cannot be uploaded directly from remote websites.</small>";
+//	if (!ini_get("allow_url_fopen")) $errors[] = "The PHP setting <strong>allow_url_fopen</strong> is not on.<br/><small>Without this, avatars cannot be uploaded directly from remote websites.</small>";
 	
 	// Check for safe_mode.
-	if (ini_get("safe_mode")) $errors[] = "<strong>Safe mode</strong> is enabled.<br/><small>This could potentially cause problems with your forum, but you can still proceed if you cannot turn it off.</small>";
+//	if (ini_get("safe_mode")) $errors[] = "<strong>Safe mode</strong> is enabled.<br/><small>This could potentially cause problems with your forum, but you can still proceed if you cannot turn it off.</small>";
 	
 	if (count($errors)) return $errors;
 }
