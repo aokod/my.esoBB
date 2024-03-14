@@ -8,10 +8,10 @@ In order to create your own forum host using this code, you must have the follow
 2. A MySQL user (`myeso_createdb`) with permissions to create users and databases.  For security reasons, every forum has its own database and user that is permitted to modify that database only.
 3. nginx web server and Certbot (Let's Encrypt) for SSL certificates.  The installer generates an nginx configuration for each instance and issues certificates for the subdomain on which the forum instance lives (e.g: kravmaga.myeso.org).
 
-The template forum software makes some slight modifications to the esoBB forum software in order to accomodate the way that it is hosted.  First, the default configuration includes values (such as database host) that are shared across forums.  Plugin/skin/language pack uploading is disabled for security reasons.  Instead, every forum uses the same directory (hence the template forum) to supply the same plugins, skins and language packs.
+The template forum software makes some slight modifications to the esoBB forum software in order to accommodate the way that it is hosted.  First, the default configuration includes values (such as database host) that are shared across forums.  Plugin/skin/language pack uploading is disabled for security reasons.  Instead, every forum uses the same directory (hence the template forum) to supply the same plugins, skins and language packs.
 
 #### To-do list
- - [] Finish logic
- - [] Code cleanup (remove several redundancies in the installer)
- - [] SMTP configuration; forum admins should be able to use our mailserver (do_not_reply@myeso.org) or an external one using SMTP.
- - [] A plugin for all forums that gives forum admins the ability to delete their forum.
+ - [ ] Finish logic
+ - [ ] Code cleanup (remove several redundancies in the installer)
+ - [ ] SMTP configuration; forum admins should be able to use our mailserver (do_not_reply@myeso.org) or an external one using SMTP.
+ - [ ] A plugin for all forums that gives forum admins the ability to delete their forum.

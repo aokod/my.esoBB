@@ -162,29 +162,13 @@ function init()
 
 }
 
-// Obtain the hardcoded version of eso (ESO_VERSION).
+// Obtain the hardcoded version of the myesoBB installer (MYESOBB_VERSION).
 function getVersion()
 {
 	include "../config.default.php";
-	$version = ESO_VERSION;
+	$version = MYESOBB_VERSION;
 	return $version;
 }
-
-// Generate a default value for the baseURL based on server environment variables.
-function suggestBaseUrl()
-{
-	$dir = substr($_SERVER["PHP_SELF"], 0, strrpos($_SERVER["PHP_SELF"], "/"));
-	$dir = substr($dir, 0, strrpos($dir, "/"));
-	if (array_key_exists("HTTPS", $_SERVER) and $_SERVER["HTTPS"] === "on") $baseURL = "https://{$_SERVER["HTTP_HOST"]}{$dir}/";
-	else $baseURL = "http://{$_SERVER["HTTP_HOST"]}{$dir}/";
-	return $baseURL;
-}
-
-// Generate a default value for whether or not to use friendly URLs, depending on if the REQUEST_URI variable is available.
-//function suggestFriendlyUrls()
-//{
-//	return !empty($_SERVER["REQUEST_URI"]);
-//}
 
 // Perform a MySQL query, and log it.
 public function query($link, $query)
