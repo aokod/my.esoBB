@@ -222,7 +222,7 @@ function doInstall()
 
 	$domainName = "myeso.org";
 	// Make sure the forum URL is valid.
-	$subDomainName = validateForumURL($_SESSION["install"]["forumURL"]);
+	$subDomainName = $_SESSION["install"]["forumURL"];
 
 	// Make sure the language exists.
 	if (!file_exists("../languages/{$_SESSION["install"]["language"]}.php"))
@@ -281,11 +281,12 @@ function doInstall()
 	mysqli_set_charset($createDb, $characterEncoding);
 
 	// Database user will be the subdomain name prefixed by "myeso_user_" for identification purposes.
-	$newUser = "myeso_user_" . $subDomainName;
+	$newDomainName = mysqli_real_escape_string($createDb, $subDomainName);
+	$newUser = "myeso_user_" . $newDomainName;
 	// Generate a 32 character length pseudo random password.
 	$newPass = bin2hex(openssl_random_pseudo_bytes(16));
 	// do a similar thing for db name
-	$newDB = "myeso_db_" . $subDomainName;
+	$newDB = "myeso_db_" . $newDomainName;
 
 //	include "query_createDb.php";
 	$createQueries = array();
@@ -307,19 +308,80 @@ function doInstall()
 	foreach ($queries as $query) {
 		if (!$this->query($db, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($db)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
 	}
-	
+
+	// Actually install the forum software into a subdirectory.
+	$forumFolder = "myeso_forum_" . $subDomainName;
+	$forumDir = "/var/www/" . $forumFolder;
+
+	// First, we need to create the folder.
+	mkdir($forumRoot, 0755);
+	mkdir($forumRoot . "/sessions", 0755);
+	// Download and unzip the forum software into the folder.
+	shell_exec("wget --directory-prefix=" . $forumDir . "/ https://github.com/geteso/eso/releases/download/1.0.0d2/1.0.0d2.tar.gz | tar -xvzf 1.0.0d2.tar.gz | mv 1.0.0d2/* . | rm -r 1.0.0d2 1.0.0d2.tar.gz");
+	// Set file ownership and permissions.
+	shell_exec("chown www-data:www-data " . $forumDir . " " . $forumDir . "/avatars " . $forumDir . "/config " . $forumDir . "/sessions");
+	shell_exec("chmod 755 " . $forumDir . " " . $forumDir . "/avatars " . $forumDir . "/config " . $forumDir . "/sessions");
+	// Use symbolic links to keep key files in one place.
+	$templateDir = "/var/www/myeso_template";
+	symlink($templateDir . "/index.php", $forumRoot . "/index.php");
+	symlink($templateDir . "/ajax.php", $forumRoot . "/ajax.php");
+	symlink($templateDir . "/sitemap.php", $forumRoot . "/sitemap.php");
+	symlink($templateDir . "/manifest.php", $forumRoot . "/manifest.php");
+	symlink($templateDir . "/config.default.php", $forumRoot . "/config.default.php");
+	symlink($templateDir . "/controllers", $forumRoot . "/controllers");
+	symlink($templateDir . "/js", $forumRoot . "/js");
+	symlink($templateDir . "/languages", $forumRoot . "/languages");
+	symlink($templateDir . "/lib", $forumRoot . "/lib");
+	symlink($templateDir . "/plugins", $forumRoot . "/plugins");
+	symlink($templateDir . "/skins", $forumRoot . "/skins");
+	symlink($templateDir . "/views", $forumRoot . "/views");
+	// clean up code in future
+	// avatars, config and sessions remain unique
+	// install, upgrade excluded
+	$nginxDir = "/etc/nginx";
+	$leDir = "/etc/letsencrypt/live/" . $subDomainName . "." . $domainName;
+	// Create NGINX configuration
+	shell_exec("echo -e 'server {
+		listen 80;
+		listen [::]:80;
+		server_name " . $subDomainName . "." . $domainName . ";
+		return 301 https://\$host\$request_uri;
+	} server {
+		listen 443 ssl http2;
+		listen [::]:443 ssl http2;
+		server_name " . $subDomainName . "." . $domainName . ";
+		ssl_certificate " . $leDir . "/fullchain.pem;
+		ssl_certificate_key " . $leDir . "/privkey.pem;
+		root " . $forumDir . ";
+		index index.php;
+		location / {
+			try_files \$uri \$uri/ /index.php?\$query_string;
+		}
+		location ~ \.php$ {
+			include snippets/fastcgi-php.conf;
+			fastcgi_pass unix:/run/php/php8.0-fpm.sock;
+			fastcgi_param PHP_VALUE \"open_basedir=" . $forumDir . "\";
+			fastcgi_param PHP_VALUE \"upload_tmp_dir=" . $forumDir . "/sessions\";
+			fastcgi_param PHP_VALUE \"session.save_path=" . $forumDir . "/sessions\";
+		}
+	}' > " . $nginxDir . "\/sites-available\/" . $forumFolder . "conf");
+	// Obtain HTTPS certificate
+	shell_exec("certbot certonly --nginx -d " . $subDomainName . "." . $domainName);
+	// Enable NGINX configuration and reload
+	shell_exec("ln -s " . $nginxDir . "\/sites-available\/" . $forumFolder . ".conf " . $nginxDir . "\/sites-enabled\/" . $forumFolder . ".conf | systemctl reload nginx");
+
 	// Write the $config variable to config.php.
-	writeConfigFile("../config/config.php", '$config', $config);
+	writeConfigFile($forumDir . "/config/config.php", '$config', $config);
 	
 	// Write the plugins.php file, which contains plugins enabled by default.
 	$enabledPlugins = array("Emoticons");
 	if ((extension_loaded("gd") or extension_loaded("gd2")) and function_exists("imagettftext"))
 		$enabledPlugins[] = "Captcha";
-	if (!file_exists("../config/plugins.php")) writeConfigFile(PATH_CONFIG."/plugins.php", '$config["loadedPlugins"]', $enabledPlugins);
+	if (!file_exists($forumDir . "/config/plugins.php")) writeConfigFile($forumDir . "/config/plugins.php", '$config["loadedPlugins"]', $enabledPlugins);
 	
 	// Write the skin.php file, which contains the enabled skin, and custom.php.
-	if (!file_exists("../config/skin.php")) writeConfigFile(PATH_CONFIG."/skin.php", '$config["skin"]', "Plastic");
-	if (!file_exists("../config/custom.php")) writeFile(PATH_CONFIG."/custom.php", '<?php
+	if (!file_exists($forumDir . "/config/skin.php")) writeConfigFile($forumDir . "/config/skin.php", '$config["skin"]', "Plastic");
+	if (!file_exists($forumDir . "/config/custom.php")) writeFile($forumDir . "/config/custom.php", '<?php
 if (!defined("IN_ESO")) exit;
 // Any language declarations, messages, or anything else custom to this forum goes in this file.
 // Examples:
@@ -327,25 +389,25 @@ if (!defined("IN_ESO")) exit;
 // $messages["incorrectLogin"]["message"] = "Oops! The login details you entered are incorrect. Did you make a typo?";
 ?>');
 	// Write custom.css and index.html as empty files (if they're not already there.)
-	if (!file_exists("../config/custom.css")) writeFile(PATH_CONFIG."/custom.css", "");
-	if (!file_exists("../config/index.html")) writeFile(PATH_CONFIG."/index.html", "");
+	if (!file_exists($forumDir . "/config/custom.css")) writeFile($forumDir . "/config/custom.css", "");
+	if (!file_exists($forumDir . "/config/index.html")) writeFile($forumDir . "/config/index.html", "");
 	
 	// Write the versions.php file with the current version.
-	include "../config.default.php";
-	writeConfigFile("../config/versions.php", '$versions', array("eso" => ESO_VERSION));
+	include $forumDir . "/config.default.php";
+	writeConfigFile($forumDir . "/config/versions.php", '$versions', array("eso" => ESO_VERSION));
 	
 	// Write a .htaccess file if they are using friendly URLs (and mod_rewrite).
-	if ($config["useModRewrite"]) {
-		writeFile(PATH_ROOT."/.htaccess", "# Generated by esoBB (https://geteso.org)
-<IfModule mod_rewrite.c>
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^(.*)$ index.php/$1 [QSA,L]
-</IfModule>");
-	}
+//	if ($config["useModRewrite"]) {
+//		writeFile(PATH_ROOT."/.htaccess", "# Generated by esoBB (https://geteso.org)
+//<IfModule mod_rewrite.c>
+//RewriteEngine On
+//RewriteCond %{REQUEST_FILENAME} !-f
+//RewriteRule ^(.*)$ index.php/$1 [QSA,L]
+//</IfModule>");
+//	}
 	
 	// Write a robots.txt file.
-	writeFile(PATH_ROOT."/robots.txt", "User-agent: *
+	writeFile($forumDir . "/robots.txt", "User-agent: *
 Disallow: /search/
 Disallow: /online/
 Disallow: /join/
@@ -356,18 +418,18 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 	
 	// Prepare to log in the administrator.
 	// Don't actually log them in, because the current session gets renamed during the final step.
-	$_SESSION["user"] = array(
-		"memberId" => 1,
-		"name" => $_SESSION["install"]["adminUser"],
-		"account" => "Administrator",
-		"color" => $color,
-		"emailOnPrivateAdd" => false,
-		"emailOnStar" => false,
-		"language" => $_SESSION["install"]["language"],
-		"avatarAlignment" => "alternate",
-		"avatarFormat" => "",
-		"disableJSEffects" => false
-	);
+//	$_SESSION["user"] = array(
+//		"memberId" => 1,
+//		"name" => $_SESSION["install"]["adminUser"],
+//		"account" => "Administrator",
+//		"color" => $color,
+//		"emailOnPrivateAdd" => false,
+//		"emailOnStar" => false,
+//		"language" => $_SESSION["install"]["language"],
+//		"avatarAlignment" => "alternate",
+//		"avatarFormat" => "",
+//		"disableJSEffects" => false
+//	);
 }
 
 // Validate the information entered in the 'Specify setup information' form.
@@ -380,7 +442,13 @@ function validateInfo()
 
 	// Forum description also must contain at least one character.
 	if (!strlen($_POST["forumDescription"])) $errors["forumDescription"] = "Your forum description must consist of at least one character";
-	
+
+	// Forum URL must be valid.
+	if (in_array(strtolower($_POST["forumURL"]), array("myeso", "myesobb", "eso", "esobb", "esotalk", "geteso", "support", "help", "docs", "about", "info", "forum", "official", "tormater", "www"))) $errors["forumURL"] = "The subdomain you have entered is reserved and cannot be used";
+	if (!strlen($_POST["forumURL"])) $errors["forumURL"] = "Your forum's subdomain can't be empty";
+	if (preg_match("/^[a-zA-Z0-9\s]*$/", $_POST["forumURL"])) $errors["forumURL"] = "Your forum's subdomain must be alphanumeric";
+	if (strlen($_POST["forumURL"]) > 25) $errors["forumURL"] = "Your forum's subdomain can't be greater than 25 characters";
+
 	// Username must not be reserved, and must not contain special characters.
 	if (in_array(strtolower($_POST["adminUser"]), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) $errors["adminUser"] = "The name you have entered is reserved and cannot be used";
 	if (!strlen($_POST["adminUser"])) $errors["adminUser"] = "You must enter a name";
@@ -395,40 +463,34 @@ function validateInfo()
 	// Password confirmation must match.
 	if ($_POST["adminPass"] != $_POST["adminConfirm"]) $errors["adminConfirm"] = "Your passwords do not match";
 	
-	$mysqlHost = "definehost";
 	// Try and connect to the database.
-	$db = @mysqli_connect($mysqlHost, $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);
-	if (!$db) $errors["mysql"] = "The installer could not connect to the MySQL server.";
+//	$db = @mysqli_connect($mysqlHost, $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);
+//	if (!$db) $errors["mysql"] = "The installer could not connect to the MySQL server.";
 //	The error returned was:<br/> " . mysqli_connect_error();
 
 	// Check to see if there are any conflicting tables already in the database.
 	// If there are, show an error with a hidden input. If the form is submitted again with this hidden input,
 	// proceed to perform the installation regardless.
-	elseif ($_POST["tablePrefix"] != @$_POST["confirmTablePrefix"] and !count($errors)) {
-		$theirTables = array();
-		$result = $this->query($db, "SHOW TABLES");
-		while (list($table) = $this->fetchRow($db, $result)) $theirTables[] = $table;
-		$ourTables = array("{$_POST["tablePrefix"]}conversations", "{$_POST["tablePrefix"]}posts", "{$_POST["tablePrefix"]}status", "{$_POST["tablePrefix"]}members", "{$_POST["tablePrefix"]}tags");
-		$conflictingTables = array_intersect($ourTables, $theirTables);
-		if (count($conflictingTables)) {
-			$_POST["showAdvanced"] = true;
-			$errors["tablePrefix"] = "The installer has detected that there is another installation of the software in the same MySQL database with the same table prefix. The conflicting tables are: <code>" . implode(", ", $conflictingTables) . "</code>.<br/><br/>To overwrite this installation, click 'Next step' again. <strong>All data will be lost.</strong><br/><br/>If you wish to create another installation alongside the existing one, <strong>change the table prefix</strong>.<input type='hidden' name='confirmTablePrefix' value='{$_POST["tablePrefix"]}'/>";
-		}
-	}
+//	elseif ($_POST["tablePrefix"] != @$_POST["confirmTablePrefix"] and !count($errors)) {
+//		$theirTables = array();
+//		$result = $this->query($db, "SHOW TABLES");
+//		while (list($table) = $this->fetchRow($db, $result)) $theirTables[] = $table;
+//		$ourTables = array("{$_POST["tablePrefix"]}conversations", "{$_POST["tablePrefix"]}posts", "{$_POST["tablePrefix"]}status", "{$_POST["tablePrefix"]}members", "{$_POST["tablePrefix"]}tags");
+//		$conflictingTables = array_intersect($ourTables, $theirTables);
+//		if (count($conflictingTables)) {
+//			$_POST["showAdvanced"] = true;
+//			$errors["tablePrefix"] = "The installer has detected that there is another installation of the software in the same MySQL database with the same table prefix. The conflicting tables are: <code>" . implode(", ", $conflictingTables) . "</code>.<br/><br/>To overwrite this installation, click 'Next step' again. <strong>All data will be lost.</strong><br/><br/>If you wish to create another installation alongside the existing one, <strong>change the table prefix</strong>.<input type='hidden' name='confirmTablePrefix' value='{$_POST["tablePrefix"]}'/>";
+//		}
+//	}
 	
 	if (count($errors)) return $errors;
-}
-
-// Validate the URL of a forum.
-function validateForumURL($forumURL) {
-	//tba
 }
 
 // Redirect to a specific step.
 function step($step)
 {
 	//tba
-	header("Location: create.php?step=$step");
+	header("Location: install.php?step=$step");
 	exit;
 }
 
