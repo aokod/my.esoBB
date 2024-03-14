@@ -1,32 +1,17 @@
-<div align="center">
+### myesoBB
+myesoBB (myeso.org) is a free host for esoBB forums.
 
-<img src="https://geteso.org/assets/img/logo.svg" alt="esoBB logo" width="175"/><br>
+The myesoBB website uses a heavily modified version of esoBB (of course) which takes the forum installer and uses it to create multiple forum instances.
 
-**Forum software that's lightweight and extensible.**
+In order to create your own forum host using this code, you must have the following:
+1. A template forum (`/var/www/myeso_template`) which contains an unmodified instance of the forum software.  The purpose of this is to keep all of the core files, including plugins and skins, in one location so they can be managed in order to easily upgrade or modify the software across all instances.  Symbolic links are used to tie the files into each individual forum instance.  The template forum also contains the default config which determines the majority of config values for every forum.
+2. A MySQL user (`myeso_createdb`) with permissions to create users and databases.  For security reasons, every forum has its own database and user that is permitted to modify that database only.
+3. nginx web server and Certbot (Let's Encrypt) for SSL certificates.  The installer generates an nginx configuration for each instance and issues certificates for the subdomain on which the forum instance lives (e.g: kravmaga.myeso.org).
 
-[![Code Size](https://img.shields.io/github/languages/code-size/geteso/eso?style=plastic)]()
-[![Issues](https://img.shields.io/github/issues/geteso/eso?style=plastic)]()
-[![License](https://img.shields.io/github/license/geteso/eso?style=plastic)]()
-[![Version](https://img.shields.io/github/v/release/geteso/eso?include_prereleases&style=plastic)]()
-[![PHP Version Support](https://img.shields.io/badge/php-%5E8.2.5-blue?style=plastic)]()
+The template forum software makes some slight modifications to the esoBB forum software in order to accomodate the way that it is hosted.  First, the default configuration includes values (such as database host) that are shared across forums.  Plugin/skin/language pack uploading is disabled for security reasons.  Instead, every forum uses the same directory (hence the template forum) to supply the same plugins, skins and language packs.
 
-</div>
-
-## About the project
-Our software is based on an earlier incarnation of an unmaintained project named [*esoTalk*](https://github.com/esotalk/esoTalk) headed by <a href="http://tobyzerner.com/">Toby Zerner</a>.  We started as a small, private forum by the name of "esotalk.ga" in order to test our fork of the software more than five years ago.  Since then, esoBB has grown into a considerable forum software with many exclusive features.
-
-Changes are always being made as our users [make suggestions on the support forum](https://forum.geteso.org) which is something that we openly encourage.  We are not affiliated with the original *esoTalk* project.
-
-## Creating your own forum
-**It's very easy to create your own forum** and requires no command-line experience at all to get started.  **For an extremely novice tutorial, read the [starter's guide](https://geteso.org/docs/install-guide/)**.  Otherwise, dependencies are listed below.
-
-1. PHP `>=5.6` with the following extensions: `gd`, `mysqli`, and `mbstring`
-2. MySQL `>=5.7` (latest version recommended) or MariaDB.
-3. A web server of your choice!
-
-You can download the most recent stable release [from the website](https://geteso.org) or by using the releases page.  Get support on the [esoBB support forum](https://forum.geteso.org) or by [sending me a message](mailto:contact@geteso.org).
-
-## Contributing
-I am looking for people to contribute to this project as I do not have much free time and can only push this software forward so much.  If you have made a contribution then you are welcome to create a pull request and you will [become a contributor](https://github.com/geteso/eso/blob/master/CONTRIBUTORS).  If you make several contributions and show technical prowice I will add you to this project.
-
-One of the most beneficial ways to help those who run forums using this software is by **creating a plugin, skin or language pack.**  If you are interested, learn more here: https://geteso.org/docs
+#### To-do list
+ - [] Finish logic
+ - [] Code cleanup (remove several redundancies in the installer)
+ - [] SMTP configuration; forum admins should be able to use our mailserver (do_not_reply@myeso.org) or an external one using SMTP.
+ - [] A plugin for all forums that gives forum admins the ability to delete their forum.
