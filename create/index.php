@@ -84,7 +84,7 @@ case "fatalChecks": ?>
 <p>If you run into any other problems, feel free to join the <a href='https://forum.geteso.org'>esoBB support forum</a> where a bunch of friendly people will be happy to help you out.</p>
 <p id='footer'><input class='button' value='Try again' type='submit'/></p>
 <hr/>
-<p id='version'>myesoBB Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
 <?php break;
 
 
@@ -99,13 +99,13 @@ case "warningChecks": ?>
 <p>If you run into any other problems, feel free to join the <a href='https://forum.geteso.org'>esoBB support forum</a> where a bunch of friendly people will be happy to help you out.</p>
 <p id='footer'><input class='button' value='Next step &#155;' type='submit' name='next'/></p>
 <hr/>
-<p id='version'>myesoBB Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
 <?php break;
 
 
 // Specify setup information.
 case "info": ?>
-<h1><img src='logo.svg' alt=''/>Specify setup information</h1>
+<h1><img src='logo.svg' alt=''/>Create a new forum</h1>
 <p class='lead'>Welcome to the myesoBB forum creation wizard.  We need a few details from you so we can get your forum ready to go.
 <br/>If you have any trouble, you may get help on the <a href='https://forum.geteso.org'>esoBB support forum</a>.</p>
 
@@ -117,7 +117,8 @@ case "info": ?>
 <li><label>Forum description</label> <input id='forumDescription' name='forumDescription' tabindex='2' type='text' class='text' placeholder="e.g. Learn about Krav Maga." value='<?php echo @$_POST["forumDescription"]; ?>'/>
 <?php if (isset($install->errors["forumDescription"])): ?><div class='warning msg'><?php echo $install->errors["forumDescription"]; ?></div><?php endif; ?></li>
 
-<li><label>Forum subdomain</label> <input id='forumURL' name='forumURL' tabindex='2' type='text' class='text' placeholder="kravmaga" value='<?php echo @$_POST["forumURL"]; ?>'/>
+<li><label>Forum URL</label> <input id='forumURL' name='forumURL' tabindex='2' type='text' class='text' placeholder="kravmaga" value='<?php echo @$_POST["forumURL"]; ?>'/>
+<p id='forumDomain'>.myeso.org</p>
 <?php if (isset($install->errors["forumURL"])): ?><div class='warning msg'><?php echo $install->errors["forumURL"]; ?></div><?php endif; ?></li>
 
 <li><label>Default language</label> <div><select id='language' name='language' tabindex='3'>
@@ -149,7 +150,7 @@ case "info": ?>
 
 <p id='footer' style='margin:0'><input type='submit' tabindex='26' value='Next step &#155;' class='button'/></p>
 <hr class='separator'/>
-<p id='version'>myesoBB Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
 <?php break;
 
 
@@ -183,7 +184,7 @@ hide(document.getElementById("error"));
 <input type='submit' class='button' value='Try again'/>
 </p>
 <hr/>
-<p id='version'>myesoBB Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
 <?php break;
 
 
@@ -213,7 +214,7 @@ hide(document.getElementById("advanced"));
 </script>
 <p style='text-align:center' id='footer'><input type='submit' class='button' value='Take me to my forum!' name='finish'/></p>
 <hr class='separator'/>
-<p id='version'>myesoBB Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
 <?php break;
 
 }

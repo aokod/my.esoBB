@@ -33,6 +33,8 @@ var $queries = array();
 // Initialize: perform an action depending on what step the user is at in the installation.
 function init()
 {
+	include "../config.php";
+
 	// Determine which step we're on:
 	// If there are fatal errors, then remain on the fatal error step.
 	// Otherwise, use the step in the URL if it's available.
@@ -165,7 +167,7 @@ function init()
 // Obtain the hardcoded version of the myesoBB installer (MYESOBB_VERSION).
 function getVersion()
 {
-	include "../config.default.php";
+	include "../config.php";
 	$version = MYESOBB_VERSION;
 	return $version;
 }
@@ -200,13 +202,9 @@ public function numRows($link, $input)
 function doInstall()
 {
 	global $config;
-	
-	// Make sure the base URL has a trailing slash.
-//	if (substr($_SESSION["install"]["baseURL"], -1) != "/") $_SESSION["install"]["baseURL"] .= "/";
-
-	$domainName = "myeso.org";
-	// Make sure the forum URL is valid.
-	$subDomainName = $_SESSION["install"]["forumURL"];
+	$domainName = MYESOBB_DOMAIN;
+	// Remove any whitespace from the forum URL.
+	$subDomainName = preg_replace("/\s+/", "", $_SESSION["install"]["forumURL"]);
 
 	// Make sure the language exists.
 	if (!file_exists("../languages/{$_SESSION["install"]["language"]}.php"))
@@ -214,10 +212,37 @@ function doInstall()
 
 	// Since every forum will be hosted on a subdomain, we need to figure out the baseURL using subDomainName.
 	$baseURL = $_SESSION["install"]["baseURL"] = "https://" . $subDomainName . "." . $domainName . "/";
-	// cookieName will need to be determined from subDomainName, as there may be several forums with the same forumTitle.
-	// tba
-	$cookieName = preg_replace(array("/\s+/", "/[^\w]/"), array("_", ""), desanitize($_SESSION["install"]["forumTitle"]));
-	
+	$cookieName = preg_replace(array("/\s+/", "/[^\w]/"), array("_", ""), $subDomainName);
+
+	$mysqlHost = MYESOBB_SQL_HOST;
+	$mysqlUser = MYESOBB_SQL_USER;
+	$mysqlPass = MYESOBB_SQL_PASS;
+	$tablePrefix = MYESOBB_SQL_PREFIX;
+	$characterEncoding = MYESOBB_SQL_ENCODING;
+	$storageEngine = MYESOBB_SQL_ENGINE;
+
+	// Create the MySQL user and pass.
+	// There needs to be a MySQL user that is only able to create databases and users.
+	$createDb = @mysqli_connect($mysqlHost, $mysqlUser, $mysqlPass);
+	mysqli_set_charset($createDb, $characterEncoding);
+	// Database user will be the subdomain name prefixed by "myeso_user_" for identification purposes.
+	$newDomainName = mysqli_real_escape_string($createDb, $subDomainName);
+	$newUser = MYESOBB_FORUM_USER_PREFIX . $newDomainName;
+	// Generate a 32 character length pseudo random password.
+	$newPass = bin2hex(openssl_random_pseudo_bytes(16));
+	// Database name will be the subdomain name prefixed by "myeso_db_" for the same reason.
+	$newDB = MYESOBB_FORUM_DB_PREFIX . $newDomainName;
+//	include "query_createDb.php";
+	$createQueries = array();
+	$createQueries[] = "CREATE USER '{$newUser}'@'{$mysqlHost}' IDENTIFIED BY '{$newPass}'";
+	$createQueries[] = "CREATE DATABASE {$newDB}";
+	$createQueries[] = "GRANT ALL PRIVILEGES ON {$newDB}.* TO '{$newUser}'@'{$mysqlHost}'";
+	foreach ($createQueries as $query) {
+		if (!$this->query($createDb, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($createDb)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
+	}
+	// Make sure to close the connection!
+	$createDb->close();
+
 	// Prepare the $config variable with the installation settings.
 	$config = array(
 		"forumTitle" => $_SESSION["install"]["forumTitle"],
@@ -225,10 +250,10 @@ function doInstall()
 		"language" => $_SESSION["install"]["language"],
 		// Every forum will rely on a default config, so DB host is unnecessary.
 //		"mysqlHost" => desanitize($_SESSION["install"]["mysqlHost"]),
-		"mysqlUser" => desanitize($_SESSION["install"]["mysqlUser"]),
-		"mysqlPass" => desanitize($_SESSION["install"]["mysqlPass"]),
+		"mysqlUser" => $newUser,
+		"mysqlPass" => $newPass,
 		// Every forum has its own database.
-		"mysqlDB" => desanitize($_SESSION["install"]["mysqlDB"]),
+		"mysqlDB" => $newDB,
 		// SMTP settings
 //		"emailFrom" => "do_not_reply@{$_SERVER["HTTP_HOST"]}",
 //		"sendEmail" => !empty($_SESSION["install"]["sendEmail"]),
@@ -253,39 +278,10 @@ function doInstall()
 //		"smtpPass" => desanitize($_SESSION["install"]["smtpPass"]),
 //	);
 //	if (!empty($_SESSION["install"]["smtpAuth"])) $config = array_merge($config, $smtpConfig);
-	
-	// Create the MySQL user and pass.
-	// There needs to be a MySQL user that is only able to create databases and users.
-	$mysqlHost = "localhost";
-	$mysqlUser = "myeso_createdb";
-	$mysqlPass = "pass";
-	$characterEncoding = "utfmb4";
-
-	$createDb = @mysqli_connect($mysqlHost, $mysqlUser, $mysqlPass, $config["mysqlDB"]);
-	mysqli_set_charset($createDb, $characterEncoding);
-
-	// Database user will be the subdomain name prefixed by "myeso_user_" for identification purposes.
-	$newDomainName = mysqli_real_escape_string($createDb, $subDomainName);
-	$newUser = "myeso_user_" . $newDomainName;
-	// Generate a 32 character length pseudo random password.
-	$newPass = bin2hex(openssl_random_pseudo_bytes(16));
-	// do a similar thing for db name
-	$newDB = "myeso_db_" . $newDomainName;
-
-//	include "query_createDb.php";
-	$createQueries = array();
-	$createQueries[] = "CREATE USER '{$newUser}'@'{$mysqlHost}' IDENTIFIED BY '{$newPass}'";
-	$createQueries[] = "CREATE DATABASE {$newDB}";
-	$createQueries[] = "GRANT ALL PRIVILEGES ON {$newDB}.* TO '{$newUser}'@'{$mysqlHost}'";
-	foreach ($createQueries as $query) {
-		if (!$this->query($createDb, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($createDb)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
-	}
-	// Make sure to close the connection!
-	$createDb->close();
  
 	// Connect to the MySQL database.
 	$db = @mysqli_connect($mysqlHost, $newUser, $newPass, $newDB);
-	mysqli_set_charset($db, $config["characterEncoding"]);
+	mysqli_set_charset($db, $characterEncoding);
 	
 	// Run the queries one by one and halt if there's an error!
 	include "queries.php";
@@ -293,39 +289,81 @@ function doInstall()
 		if (!$this->query($db, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($db)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
 	}
 
-	// Actually install the forum software into a subdirectory.
-	$forumFolder = "myeso_forum_" . $subDomainName;
-	$forumDir = "/var/www/" . $forumFolder;
+	// Set up a skeleton forum located in the new subdirectory.
+	$forumFolder = MYESOBB_FORUM_PREFIX . $subDomainName;
+	$forumDir = MYESOBB_WEBROOT . $forumFolder;
 
 	// First, we need to create the folder.
-	mkdir($forumRoot, 0755);
-	mkdir($forumRoot . "/sessions", 0755);
-	// Download and unzip the forum software into the folder.
-	shell_exec("wget --directory-prefix=" . $forumDir . "/ https://github.com/geteso/eso/releases/download/1.0.0d2/1.0.0d2.tar.gz | tar -xvzf 1.0.0d2.tar.gz | mv 1.0.0d2/* . | rm -r 1.0.0d2 1.0.0d2.tar.gz");
+	mkdir($forumDir, 0755);
+	mkdir($forumDir . "/config", 0755);
+	mkdir($forumDir . "/avatars", 0755);
+	mkdir($forumDir . "/sessions", 0755);
+	// Create NGINX configuration
+	shell_exec("echo '<?php
+	/**
+	 * This file is part of the esoBB project, a derivative of esoTalk.
+	 * It has been modified by several contributors.  (contact@geteso.org)
+	 * Copyright (C) 2023 esoTalk, esoBB.  <https://geteso.org>
+	 * 
+	 * This program is free software: you can redistribute it and/or modify
+	 * it under the terms of the GNU General Public License as published by
+	 * the Free Software Foundation, either version 3 of the License, or
+	 * (at your option) any later version.
+	 * 
+	 * This program is distributed in the hope that it will be useful,
+	 * but WITHOUT ANY WARRANTY; without even the implied warranty of
+	 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	 * GNU General Public License for more details.
+	 * 
+	 * You should have received a copy of the GNU General Public License
+	 * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+	 */
+	
+	/**
+	 * GIF avatar loader: displays an unresized gif with secure headers.
+	 */
+	if (!\$memberId = (int)@\$_GET[\"id\"]) exit;
+	\$filename = \"\$memberId.gif\";
+	if (!file_exists(\$filename)) exit;
+	header(\"Content-Type: image/gif\");
+	header(\"Content-Description: File Transfer\");
+	header(\"Content-Disposition: attachment; filename=\"\$filename\"\"); // The filename.
+	header(\"Content-Transfer-Encoding: binary\");
+	header(\"Expires: 0\");
+	header(\"Cache-Control: must-revalidate, post-check=0, pre-check=0\");
+	header(\"Pragma: public\");
+	header(\"Content-Length: \" . filesize(\$filename));
+	set_time_limit(0);
+	ob_clean();
+	flush();
+	readfile(\$filename);
+	exit;
+	
+	?>' > " . $forumDir . "/avatars/g.php");
 	// Set file ownership and permissions.
 	shell_exec("chown www-data:www-data " . $forumDir . " " . $forumDir . "/avatars " . $forumDir . "/config " . $forumDir . "/sessions");
 	shell_exec("chmod 755 " . $forumDir . " " . $forumDir . "/avatars " . $forumDir . "/config " . $forumDir . "/sessions");
 	// Use symbolic links to keep key files in one place.
-	$templateDir = "/var/www/myeso_template";
-	symlink($templateDir . "/index.php", $forumRoot . "/index.php");
-	symlink($templateDir . "/ajax.php", $forumRoot . "/ajax.php");
-	symlink($templateDir . "/sitemap.php", $forumRoot . "/sitemap.php");
-	symlink($templateDir . "/manifest.php", $forumRoot . "/manifest.php");
-	symlink($templateDir . "/config.default.php", $forumRoot . "/config.default.php");
-	symlink($templateDir . "/controllers", $forumRoot . "/controllers");
-	symlink($templateDir . "/js", $forumRoot . "/js");
-	symlink($templateDir . "/languages", $forumRoot . "/languages");
-	symlink($templateDir . "/lib", $forumRoot . "/lib");
-	symlink($templateDir . "/plugins", $forumRoot . "/plugins");
-	symlink($templateDir . "/skins", $forumRoot . "/skins");
-	symlink($templateDir . "/views", $forumRoot . "/views");
+	$templateDir = MYESOBB_WEBROOT . MYESOBB_TEMPLATE;
+	symlink($templateDir . "/index.php", $forumDir . "/index.php");
+	symlink($templateDir . "/ajax.php", $forumDir . "/ajax.php");
+	symlink($templateDir . "/sitemap.php", $forumDir . "/sitemap.php");
+	symlink($templateDir . "/manifest.php", $forumDir . "/manifest.php");
+	symlink($templateDir . "/config.default.php", $forumDir . "/config.default.php");
+	symlink($templateDir . "/controllers", $forumDir . "/controllers");
+	symlink($templateDir . "/js", $forumDir . "/js");
+	symlink($templateDir . "/languages", $forumDir . "/languages");
+	symlink($templateDir . "/lib", $forumDir . "/lib");
+	symlink($templateDir . "/plugins", $forumDir . "/plugins");
+	symlink($templateDir . "/skins", $forumDir . "/skins");
+	symlink($templateDir . "/views", $forumDir . "/views");
 	// clean up code in future
 	// avatars, config and sessions remain unique
 	// install, upgrade excluded
 	$nginxDir = "/etc/nginx";
-	$leDir = "/etc/letsencrypt/live/" . $subDomainName . "." . $domainName;
+	$certDir = "/etc/letsencrypt/live/" . $domainName;
 	// Create NGINX configuration
-	shell_exec("echo -e 'server {
+	shell_exec("echo 'server {
 		listen 80;
 		listen [::]:80;
 		server_name " . $subDomainName . "." . $domainName . ";
@@ -334,8 +372,8 @@ function doInstall()
 		listen 443 ssl http2;
 		listen [::]:443 ssl http2;
 		server_name " . $subDomainName . "." . $domainName . ";
-		ssl_certificate " . $leDir . "/fullchain.pem;
-		ssl_certificate_key " . $leDir . "/privkey.pem;
+		ssl_certificate " . $certDir . "/fullchain.pem;
+		ssl_certificate_key " . $certDir . "/privkey.pem;
 		root " . $forumDir . ";
 		index index.php;
 		location / {
@@ -347,12 +385,15 @@ function doInstall()
 			fastcgi_param PHP_VALUE \"open_basedir=" . $forumDir . "\";
 			fastcgi_param PHP_VALUE \"upload_tmp_dir=" . $forumDir . "/sessions\";
 			fastcgi_param PHP_VALUE \"session.save_path=" . $forumDir . "/sessions\";
+			fastcgi_param PHP_VALUE \"session.gc_probability=1\";
+			fastcgi_param PHP_VALUE \"session.gc.divisor=100\";
+			fastcgi_param PHP_VALUE \"session.gc_maxlifetime=1440\";
 		}
-	}' > " . $nginxDir . "\/sites-available\/" . $forumFolder . "conf");
+	}' > " . $nginxDir . "/sites-available/" . $forumFolder . "conf");
 	// Obtain HTTPS certificate
-	shell_exec("certbot certonly --nginx -d " . $subDomainName . "." . $domainName);
+//	shell_exec("certbot certonly --nginx -d " . $subDomainName . "." . $domainName);
 	// Enable NGINX configuration and reload
-	shell_exec("ln -s " . $nginxDir . "\/sites-available\/" . $forumFolder . ".conf " . $nginxDir . "\/sites-enabled\/" . $forumFolder . ".conf | systemctl reload nginx");
+	shell_exec("ln -s " . $nginxDir . "/sites-available/" . $forumFolder . ".conf " . $nginxDir . "/sites-enabled/" . $forumFolder . ".conf | systemctl reload nginx");
 
 	// Write the $config variable to config.php.
 	writeConfigFile($forumDir . "/config/config.php", '$config', $config);
@@ -430,8 +471,10 @@ function validateInfo()
 	// Forum URL must be valid.
 	if (in_array(strtolower($_POST["forumURL"]), array("myeso", "myesobb", "eso", "esobb", "esotalk", "geteso", "support", "help", "docs", "about", "info", "forum", "official", "tormater", "www"))) $errors["forumURL"] = "The subdomain you have entered is reserved and cannot be used";
 	if (!strlen($_POST["forumURL"])) $errors["forumURL"] = "Your forum's subdomain can't be empty";
-	if (preg_match("/^[a-zA-Z0-9\s]*$/", $_POST["forumURL"])) $errors["forumURL"] = "Your forum's subdomain must be alphanumeric";
+	if (!preg_match("/^[a-zA-Z0-9\s]*$/", $_POST["forumURL"])) $errors["forumURL"] = "Your forum's subdomain must be alphanumeric";
 	if (strlen($_POST["forumURL"]) > 25) $errors["forumURL"] = "Your forum's subdomain can't be greater than 25 characters";
+	// Forum URL must not already exist.
+	if (is_dir(MYESOBB_WEBROOT . MYESOBB_FORUM_PREFIX . preg_replace("/\s+/", "", $_POST["forumURL"]))) $errors["forumURL"] = "A forum with this subdomain has already been created";
 
 	// Username must not be reserved, and must not contain special characters.
 	if (in_array(strtolower($_POST["adminUser"]), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) $errors["adminUser"] = "The name you have entered is reserved and cannot be used";
@@ -473,8 +516,7 @@ function validateInfo()
 // Redirect to a specific step.
 function step($step)
 {
-	//tba
-	header("Location: install.php?step=$step");
+	header("Location: ?step=$step");
 	exit;
 }
 

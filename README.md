@@ -11,7 +11,8 @@ In order to create your own forum host using this code, you must have the follow
 The template forum software makes some slight modifications to the esoBB forum software in order to accommodate the way that it is hosted.  First, the default configuration includes values (such as database host) that are shared across forums.  Plugin/skin/language pack uploading is disabled for security reasons.  Instead, every forum uses the same directory (hence the template forum) to supply the same plugins, skins and language packs.
 
 #### To-do list
- - [ ] Finish logic
+ - [X] Finish logic
  - [ ] Code cleanup (remove several redundancies in the installer)
+ - [ ] Database to keep track of forums, date they were created, etc.
  - [ ] SMTP configuration; forum admins should be able to use our mailserver (do_not_reply@myeso.org) or an external one using SMTP.
  - [ ] A plugin for all forums that gives forum admins the ability to delete their forum.

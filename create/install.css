@@ -30,6 +30,9 @@ label.checkbox, label.radio {cursor:pointer}
 .form li {margin-bottom:4px; overflow:hidden; list-style:none; display:block; zoom:1}
 .form small {color:#888; font-size:90%}
 .form small a {color:#55f}
+/* myesoBB */
+.form input#forumURL {width:12em}
+.form p#forumDomain {float:left; font-size:125%; margin:1px 0 0 3px}
 
 /* Fieldsets */
 fieldset {margin:10px 0 10px 0; padding:0 15px 15px; border:1px solid #96b3c9; border:1px solid rgba(50,81,126,0.25)}
@@ -81,4 +84,6 @@ hr.separator {color:#bbf; border:dashed #96b3c9; border:dashed rgba(50,81,126,0.
   .form input.text {width:100%!important; width:-moz-fill-available!important; width:-webkit-fill-available!important; width:stretch!important}
   .form select {width:100%}
   .form .msg {width:auto; width:-moz-fill-available; width:-webkit-fill-available; width:stretch}
+  /* myesoBB */
+  .form input#forumURL {width:calc(100% - 85px)!important}
 }
