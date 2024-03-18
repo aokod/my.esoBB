@@ -44,7 +44,7 @@ public function __construct($host, $user, $password, $db, $encoding = "utf8mb4")
 // Run a query. If $fatal is true, then a fatal error will be displayed and page execution will be halted if the query fails.
 public function query($query, $fatal = true)
 {
-	global $language, $config;
+	global $config;
 	
 	// If the query is empty, don't bother proceeding.
 	if (!$query) return false;

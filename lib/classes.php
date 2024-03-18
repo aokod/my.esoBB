@@ -62,6 +62,7 @@ class Controller extends Hookable {
 
 var $action;
 var $view;
+var $views;
 var $title;
 var $eso;
 
@@ -71,8 +72,20 @@ function ajax() {}
 // Render the page according to the controller's $view.
 function render()
 {
-	global $language, $messages, $config;
+	global $messages, $config;
 	include $this->eso->skin->getView($this->view);
+}
+
+// Register a custom view.
+// Whenever a controller attempts to include $view, this new $file associated with $view will be included instead.
+function registerView($view, $file)
+{
+	$this->views[$view] = $file;
+}
+
+function getView($view)
+{
+	return empty($this->views[$view]) ? "views/$view" : $this->views[$view];
 }
 
 }

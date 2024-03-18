@@ -1,40 +1,24 @@
 <?php
-/**
- * This file is part of the esoBB project, a derivative of esoTalk.
- * It has been modified by several contributors.  (contact@geteso.org)
- * Copyright (C) 2023 esoTalk, esoBB.  <https://geteso.org>
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
 if (!defined("IN_ESO")) exit;
 
-/**
- * Install controller: performs all installation tasks - checks server
- * environment, runs installation queries, creates configuration files...
- */
-class Install {
+class create extends Controller {
 
+var $view = "create.view.php";
 var $step;
-var $config;
+var $languages;
+var $captchaKey;
 var $errors = array();
 var $queries = array();
 
 // Initialize: perform an action depending on what step the user is at in the installation.
 function init()
 {
-	include "../config.php";
+	global $config;
 
+	// Set the title.
+	$this->title = "Create forum";
+	$this->eso->addScript("https://challenges.cloudflare.com/turnstile/v0/api.js'", 1);
+	
 	// Determine which step we're on:
 	// If there are fatal errors, then remain on the fatal error step.
 	// Otherwise, use the step in the URL if it's available.
@@ -56,7 +40,7 @@ function init()
 		
 			// Prepare a list of language packs in the ../languages folder.
 			$this->languages = array();
-			if ($handle = opendir("../languages")) {
+			if ($handle = opendir(PATH_ROOT."/languages")) {
 			    while (false !== ($v = readdir($handle))) {
 					if (!in_array($v, array(".", "..")) and substr($v, -4) == ".php" and $v[0] != ".") {
 						$v = substr($v, 0, strrpos($v, "."));
@@ -64,6 +48,8 @@ function init()
 					}
 				}
 			}
+
+			$this->captchaKey = $config["captchaKey"];
 //			// Prepare a list of SMTP email authentication options.
 //			$this->smtpOptions = array(
 //				false => "None at all (internal email)",
@@ -136,7 +122,7 @@ function init()
 			if ($this->errors = $this->doInstall()) return;
 			
 			// Log queries to the session and proceed to the final step.
-			$_SESSION["queries"] = $this->queries;
+//			$_SESSION["queries"] = $this->queries;
 			$this->step("finish");
 			break;
 			
@@ -151,9 +137,8 @@ function init()
 //				session_destroy();
 //				session_name("{$config["cookieName"]}_Session");
 //				session_start();
-//				$_SESSION["user"] = $user;
-//				header("Location: ../");
-				// tba: redirect to new forum
+				$forumURL = preg_replace("/\s+/", "", $_SESSION["install"]["forumURL"]);
+				header("Location: https://" . $forumURL . "." . $config["domain"] . "/");
 				exit;
 			}
 			// Lock the installer.
@@ -167,7 +152,6 @@ function init()
 // Obtain the hardcoded version of the myesoBB installer (MYESOBB_VERSION).
 function getVersion()
 {
-	include "../config.php";
 	$version = MYESOBB_VERSION;
 	return $version;
 }
@@ -202,7 +186,7 @@ public function numRows($link, $input)
 function doInstall()
 {
 	global $config;
-	$domainName = MYESOBB_DOMAIN;
+	$domainName = $config["domain"];
 	// Remove any whitespace from the forum URL.
 	$subDomainName = preg_replace("/\s+/", "", $_SESSION["install"]["forumURL"]);
 
@@ -214,37 +198,25 @@ function doInstall()
 	$baseURL = $_SESSION["install"]["baseURL"] = "https://" . $subDomainName . "." . $domainName . "/";
 	$cookieName = preg_replace(array("/\s+/", "/[^\w]/"), array("_", ""), $subDomainName);
 
-	$mysqlHost = MYESOBB_SQL_HOST;
-	$mysqlUser = MYESOBB_SQL_USER;
-	$mysqlPass = MYESOBB_SQL_PASS;
-	$tablePrefix = MYESOBB_SQL_PREFIX;
-	$characterEncoding = MYESOBB_SQL_ENCODING;
-	$storageEngine = MYESOBB_SQL_ENGINE;
-
-	// Create the MySQL user and pass.
-	// There needs to be a MySQL user that is only able to create databases and users.
-	$createDb = @mysqli_connect($mysqlHost, $mysqlUser, $mysqlPass);
-	mysqli_set_charset($createDb, $characterEncoding);
 	// Database user will be the subdomain name prefixed by "myeso_user_" for identification purposes.
-	$newDomainName = mysqli_real_escape_string($createDb, $subDomainName);
-	$newUser = MYESOBB_FORUM_USER_PREFIX . $newDomainName;
+	$newDomainName = $this->eso->db->escape($subDomainName);
+	$newUser = $config["forumUserPrefix"] . $newDomainName;
 	// Generate a 32 character length pseudo random password.
 	$newPass = bin2hex(openssl_random_pseudo_bytes(16));
 	// Database name will be the subdomain name prefixed by "myeso_db_" for the same reason.
-	$newDB = MYESOBB_FORUM_DB_PREFIX . $newDomainName;
+	$newDB = $config["forumDbPrefix"] . $newDomainName;
+	$mysqlHost = $config["mysqlHost"];
 //	include "query_createDb.php";
 	$createQueries = array();
 	$createQueries[] = "CREATE USER '{$newUser}'@'{$mysqlHost}' IDENTIFIED BY '{$newPass}'";
 	$createQueries[] = "CREATE DATABASE {$newDB}";
 	$createQueries[] = "GRANT ALL PRIVILEGES ON {$newDB}.* TO '{$newUser}'@'{$mysqlHost}'";
 	foreach ($createQueries as $query) {
-		if (!$this->query($createDb, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($createDb)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
+		if (!$this->eso->db->query($query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($this->eso->db)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
 	}
-	// Make sure to close the connection!
-	$createDb->close();
 
 	// Prepare the $config variable with the installation settings.
-	$config = array(
+	$forumConfig = array(
 		"forumTitle" => $_SESSION["install"]["forumTitle"],
 		"forumDescription" => $_SESSION["install"]["forumDescription"],
 		"language" => $_SESSION["install"]["language"],
@@ -280,18 +252,21 @@ function doInstall()
 //	if (!empty($_SESSION["install"]["smtpAuth"])) $config = array_merge($config, $smtpConfig);
  
 	// Connect to the MySQL database.
-	$db = @mysqli_connect($mysqlHost, $newUser, $newPass, $newDB);
-	mysqli_set_charset($db, $characterEncoding);
-	
+	$tablePrefix = $config["mysqlPrefix"];
+	$characterEncoding = $config["mysqlEncoding"];
+	$storageEngine = $config["mysqlEngine"];
+	$forumDb = @mysqli_connect($config["mysqlHost"], $newUser, $newPass, $newDB);
+	mysqli_set_charset($forumDb, $config["mysqlEncoding"]);
 	// Run the queries one by one and halt if there's an error!
-	include "queries.php";
+	include "../queries.php";
 	foreach ($queries as $query) {
-		if (!$this->query($db, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($db)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
+		if (!$this->query($forumDb, $query)) return array(1 => "<code>" . sanitizeHTML(mysqli_error($forumDb)) . "</code><p><strong>The query that caused this error was</strong></p><pre>" . sanitizeHTML($query) . "</pre>");
 	}
+	$forumDb->close();
 
 	// Set up a skeleton forum located in the new subdirectory.
-	$forumFolder = MYESOBB_FORUM_PREFIX . $subDomainName;
-	$forumDir = MYESOBB_WEBROOT . $forumFolder;
+	$forumFolder = $config["forumFolderPrefix"] . $subDomainName;
+	$forumDir = $config["webroot"] . $forumFolder;
 
 	// First, we need to create the folder.
 	mkdir($forumDir, 0755);
@@ -344,7 +319,7 @@ function doInstall()
 	shell_exec("chown www-data:www-data " . $forumDir . " " . $forumDir . "/avatars " . $forumDir . "/config " . $forumDir . "/sessions");
 	shell_exec("chmod 755 " . $forumDir . " " . $forumDir . "/avatars " . $forumDir . "/config " . $forumDir . "/sessions");
 	// Use symbolic links to keep key files in one place.
-	$templateDir = MYESOBB_WEBROOT . MYESOBB_TEMPLATE;
+	$templateDir = $config["webroot"] . $config["templateFolder"];
 	symlink($templateDir . "/index.php", $forumDir . "/index.php");
 	symlink($templateDir . "/ajax.php", $forumDir . "/ajax.php");
 	symlink($templateDir . "/sitemap.php", $forumDir . "/sitemap.php");
@@ -360,43 +335,9 @@ function doInstall()
 	// clean up code in future
 	// avatars, config and sessions remain unique
 	// install, upgrade excluded
-	$nginxDir = "/etc/nginx";
-	$certDir = "/etc/letsencrypt/live/" . $domainName;
-	// Create NGINX configuration
-	shell_exec("echo 'server {
-		listen 80;
-		listen [::]:80;
-		server_name " . $subDomainName . "." . $domainName . ";
-		return 301 https://\$host\$request_uri;
-	} server {
-		listen 443 ssl http2;
-		listen [::]:443 ssl http2;
-		server_name " . $subDomainName . "." . $domainName . ";
-		ssl_certificate " . $certDir . "/fullchain.pem;
-		ssl_certificate_key " . $certDir . "/privkey.pem;
-		root " . $forumDir . ";
-		index index.php;
-		location / {
-			try_files \$uri \$uri/ /index.php?\$query_string;
-		}
-		location ~ \.php$ {
-			include snippets/fastcgi-php.conf;
-			fastcgi_pass unix:/run/php/php8.0-fpm.sock;
-			fastcgi_param PHP_VALUE \"open_basedir=" . $forumDir . "\";
-			fastcgi_param PHP_VALUE \"upload_tmp_dir=" . $forumDir . "/sessions\";
-			fastcgi_param PHP_VALUE \"session.save_path=" . $forumDir . "/sessions\";
-			fastcgi_param PHP_VALUE \"session.gc_probability=1\";
-			fastcgi_param PHP_VALUE \"session.gc.divisor=100\";
-			fastcgi_param PHP_VALUE \"session.gc_maxlifetime=1440\";
-		}
-	}' > " . $nginxDir . "/sites-available/" . $forumFolder . "conf");
-	// Obtain HTTPS certificate
-//	shell_exec("certbot certonly --nginx -d " . $subDomainName . "." . $domainName);
-	// Enable NGINX configuration and reload
-	shell_exec("ln -s " . $nginxDir . "/sites-available/" . $forumFolder . ".conf " . $nginxDir . "/sites-enabled/" . $forumFolder . ".conf | systemctl reload nginx");
 
 	// Write the $config variable to config.php.
-	writeConfigFile($forumDir . "/config/config.php", '$config', $config);
+	writeConfigFile($forumDir . "/config/config.php", '$config', $forumConfig);
 	
 	// Write the plugins.php file, which contains plugins enabled by default.
 	$enabledPlugins = array("Emoticons");
@@ -460,6 +401,8 @@ Sitemap: {$config["baseURL"]}sitemap.php");
 // Validate the information entered in the 'Specify setup information' form.
 function validateInfo()
 {
+	global $config;
+
 	$errors = array();
 
 	// Forum title must contain at least one character.
@@ -474,7 +417,7 @@ function validateInfo()
 	if (!preg_match("/^[a-zA-Z0-9\s]*$/", $_POST["forumURL"])) $errors["forumURL"] = "Your forum's subdomain must be alphanumeric";
 	if (strlen($_POST["forumURL"]) > 25) $errors["forumURL"] = "Your forum's subdomain can't be greater than 25 characters";
 	// Forum URL must not already exist.
-	if (is_dir(MYESOBB_WEBROOT . MYESOBB_FORUM_PREFIX . preg_replace("/\s+/", "", $_POST["forumURL"]))) $errors["forumURL"] = "A forum with this subdomain has already been created";
+	if (is_dir($config["webroot"] . $config["forumFolderPrefix"] . preg_replace("/\s+/", "", $_POST["forumURL"]))) $errors["forumURL"] = "A forum with this subdomain has already been created";
 
 	// Username must not be reserved, and must not contain special characters.
 	if (in_array(strtolower($_POST["adminUser"]), array("guest", "member", "members", "moderator", "moderators", "administrator", "administrators", "suspended", "everyone", "myself"))) $errors["adminUser"] = "The name you have entered is reserved and cannot be used";
@@ -489,6 +432,29 @@ function validateInfo()
 	
 	// Password confirmation must match.
 	if ($_POST["adminPass"] != $_POST["adminConfirm"]) $errors["adminConfirm"] = "Your passwords do not match";
+
+	// Captcha must be valid.
+	if (!$_POST["cf-turnstile-response"]) return $errors["validateCaptcha"] = "Please fill out the captcha";
+
+	if (isset($_POST["cf-turnstile-response"]) && !empty($_POST["cf-turnstile-response"])) {
+		$path = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+		$data = array(
+			"secret" => $config["captchaSecret"],
+			"response" => $_POST['cf-turnstile-response'],
+			"remoteip" => $_SERVER["REMOTE_ADDR"]
+		);
+		$options = array(
+			"http" => array(
+				"method" => "POST",
+				"content" => http_build_query($data)
+			)
+		);
+		$result = file_get_contents($path, false, stream_context_create($options));
+		$responseKeys = json_decode($result, true);
+		if (!$responseKeys["success"]) return $errors["validateCaptcha"] = "Please fill out the captcha";
+	} else {
+		return $errors["validateCaptcha"] = "Please fill out the captcha";
+	}
 	
 	// Try and connect to the database.
 //	$db = @mysqli_connect($mysqlHost, $_POST["mysqlUser"], $_POST["mysqlPass"], $_POST["mysqlDB"]);

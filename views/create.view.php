@@ -1,76 +1,12 @@
 <?php
-/**
- * This file is part of the esoBB project, a derivative of esoTalk.
- * It has been modified by several contributors.  (contact@geteso.org)
- * Copyright (C) 2023 esoTalk, esoBB.  <https://geteso.org>
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/**
- * Installer wrapper: sets up the Install controller and displays the
- * installer interface.
- */
-define("IN_ESO", 1);
-
-// Unset the page execution time limit.
-@set_time_limit(0);
-
-// Define directory constants.
-if (!defined("PATH_ROOT")) define("PATH_ROOT", realpath(__DIR__ . "/.."));
-if (!defined("PATH_LIBRARY")) define("PATH_LIBRARY", PATH_ROOT."/lib");
-
-// Require essential files.
-require PATH_LIBRARY."/functions.php";
-require PATH_LIBRARY."/classes.php";
-require PATH_LIBRARY."/database.php";
-
-// Start a session if one does not already exist.
-if (!session_id()) session_start();
-
-// Undo register_globals.
-undoRegisterGlobals();
-
-// Sanitize the request data using sanitize().
-$_POST = sanitize($_POST);
-$_GET = sanitize($_GET);
-$_COOKIE = sanitize($_COOKIE);
-
-// Set up the Install controller, which will perform all installation tasks.
-require "install.controller.php";
-$install = new Install();
-$install->init();
-
+if(!defined("IN_ESO"))exit;
 ?>
-<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Strict//EN' 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd'>
-<html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-<meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
-<title>myesoBB Installer</title>
-<script type='text/javascript' src='../js/eso.js'></script>
-<link type='text/css' rel='stylesheet' href='install.css'/>
-</head>
 
-<body>
-	
 <form action='' method='post'>
-<div id='container'>
 
 <?php
 
-switch ($install->step) {
+switch ($this->step) {
 
 
 // Fatal checks.
@@ -79,12 +15,12 @@ case "fatalChecks": ?>
 <hr/>
 <p>The following errors were found with myesoBB's setup. They must be resolved before you can use the installer.</p>
 <ul>
-<?php foreach ($install->errors as $error) echo "<li>$error</li>"; ?>
+<?php foreach ($this->errors as $error) echo "<li>$error</li>"; ?>
 </ul>
 <p>If you run into any other problems, feel free to join the <a href='https://forum.geteso.org'>esoBB support forum</a> where a bunch of friendly people will be happy to help you out.</p>
 <p id='footer'><input class='button' value='Try again' type='submit'/></p>
 <hr/>
-<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $this->getVersion(); ?></p>
 <?php break;
 
 
@@ -94,12 +30,12 @@ case "warningChecks": ?>
 <hr/>
 <p>The following errors were found with myesoBB's setup. You can use the installer without resolving them, but some functionality may be limited.</p>
 <ul>
-<?php foreach ($install->errors as $error) echo "<li>$error</li>"; ?>
+<?php foreach ($this->errors as $error) echo "<li>$error</li>"; ?>
 </ul>
 <p>If you run into any other problems, feel free to join the <a href='https://forum.geteso.org'>esoBB support forum</a> where a bunch of friendly people will be happy to help you out.</p>
 <p id='footer'><input class='button' value='Next step &#155;' type='submit' name='next'/></p>
 <hr/>
-<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $this->getVersion(); ?></p>
 <?php break;
 
 
@@ -112,37 +48,45 @@ case "info": ?>
 <fieldset id='basicDetails'><legend>Specify basic details</legend>
 <ul class='form'>
 <li><label>Forum title</label> <input id='forumTitle' name='forumTitle' tabindex='1' type='text' class='text' placeholder="e.g. Simon's Krav Maga Forum" value='<?php echo @$_POST["forumTitle"]; ?>'/>
-<?php if (isset($install->errors["forumTitle"])): ?><div class='warning msg'><?php echo $install->errors["forumTitle"]; ?></div><?php endif; ?></li>
+<?php if (isset($this->errors["forumTitle"])): ?><div class='warning msg'><?php echo $this->errors["forumTitle"]; ?></div><?php endif; ?></li>
 
 <li><label>Forum description</label> <input id='forumDescription' name='forumDescription' tabindex='2' type='text' class='text' placeholder="e.g. Learn about Krav Maga." value='<?php echo @$_POST["forumDescription"]; ?>'/>
-<?php if (isset($install->errors["forumDescription"])): ?><div class='warning msg'><?php echo $install->errors["forumDescription"]; ?></div><?php endif; ?></li>
+<?php if (isset($this->errors["forumDescription"])): ?><div class='warning msg'><?php echo $this->errors["forumDescription"]; ?></div><?php endif; ?></li>
 
 <li><label>Forum URL</label> <input id='forumURL' name='forumURL' tabindex='2' type='text' class='text' placeholder="kravmaga" value='<?php echo @$_POST["forumURL"]; ?>'/>
 <p id='forumDomain'>.myeso.org</p>
-<?php if (isset($install->errors["forumURL"])): ?><div class='warning msg'><?php echo $install->errors["forumURL"]; ?></div><?php endif; ?></li>
+<?php if (isset($this->errors["forumURL"])): ?><div class='warning msg'><?php echo $this->errors["forumURL"]; ?></div><?php endif; ?></li>
 
 <li><label>Default language</label> <div><select id='language' name='language' tabindex='3'>
-<?php foreach ($install->languages as $language) echo "<option value='$language'" . ((!empty($_POST["language"]) ? $_POST["language"] : "English (casual)") == $language ? " selected='selected'" : "") . ">$language</option>"; ?>
+<?php foreach ($this->languages as $language) echo "<option value='$language'" . ((!empty($_POST["language"]) ? $_POST["language"] : "English (casual)") == $language ? " selected='selected'" : "") . ">$language</option>"; ?>
 </select><br/>
 </div></li>
 </ul>
 </fieldset>
 
 <fieldset id='adminConfig'><legend>Administrator account</legend>
-<p>myesoBB will use the following information to set up your administrator account on your forum.</p>
+<p>myesoBB will use the following information to set up the administrator account on your forum.</p>
 
 <ul class='form'>
 <li><label>Administrator username</label> <input id='adminUser' name='adminUser' tabindex='15' type='text' class='text' placeholder='Simon' autocomplete='username' value='<?php echo @$_POST["adminUser"]; ?>'/>
-<?php if (isset($install->errors["adminUser"])): ?><div class='warning msg'><?php echo $install->errors["adminUser"]; ?></div><?php endif; ?></li>
+<?php if (isset($this->errors["adminUser"])): ?><div class='warning msg'><?php echo $this->errors["adminUser"]; ?></div><?php endif; ?></li>
 	
 <li><label>Administrator email</label> <input id='adminEmail' name='adminEmail' tabindex='16' type='text' class='text' placeholder='simon@example.com' autocomplete='email' value='<?php echo @$_POST["adminEmail"]; ?>'/>
-<?php if (isset($install->errors["adminEmail"])): ?><span class='warning msg'><?php echo $install->errors["adminEmail"]; ?></span><?php endif; ?></li>
+<?php if (isset($this->errors["adminEmail"])): ?><span class='warning msg'><?php echo $this->errors["adminEmail"]; ?></span><?php endif; ?></li>
 	
 <li><label>Administrator password</label> <input id='adminPass' name='adminPass' tabindex='17' type='password' class='text' autocomplete='new-password' value='<?php echo @$_POST["adminPass"]; ?>'/>
-<?php if (isset($install->errors["adminPass"])): ?><span class='warning msg'><?php echo $install->errors["adminPass"]; ?></span><?php endif; ?></li>
+<?php if (isset($this->errors["adminPass"])): ?><span class='warning msg'><?php echo $this->errors["adminPass"]; ?></span><?php endif; ?></li>
 	
 <li><label>Confirm password</label> <input id='adminConfirm' name='adminConfirm' tabindex='18' type='password' class='text' autocomplete='off' value='<?php echo @$_POST["adminConfirm"]; ?>'/>
-<?php if (isset($install->errors["adminConfirm"])): ?><span class='warning msg'><?php echo $install->errors["adminConfirm"]; ?></span><?php endif; ?></li>
+<?php if (isset($this->errors["adminConfirm"])): ?><span class='warning msg'><?php echo $this->errors["adminConfirm"]; ?></span><?php endif; ?></li>
+</ul>
+</fieldset>
+
+<fieldset id='verifyTurnstile'><legend>Are you human?</legend>
+
+<ul class='form'>
+<li><div class='cf-turnstile' data-sitekey='<?php echo $this->captchaKey; ?>'></div>
+<?php if (isset($this->errors["validateCaptcha"])): ?><div class='warning msg'><?php echo $this->errors["validateCaptcha"]; ?></div><?php endif; ?></li>
 </ul>
 </fieldset>
 
@@ -150,7 +94,7 @@ case "info": ?>
 
 <p id='footer' style='margin:0'><input type='submit' tabindex='26' value='Next step &#155;' class='button'/></p>
 <hr class='separator'/>
-<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $this->getVersion(); ?></p>
 <?php break;
 
 
@@ -169,7 +113,7 @@ case "install": ?>
 <a href='#' onclick='toggleError();return false'>Show error information</a>
 <hr class='aboveToggle'/>
 <div id='error'>
-<?php echo $install->errors[1]; ?>
+<?php echo $this->errors[1]; ?>
 </div>
 <script type='text/javascript'>
 // <![CDATA[
@@ -184,7 +128,7 @@ hide(document.getElementById("error"));
 <input type='submit' class='button' value='Try again'/>
 </p>
 <hr/>
-<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $this->getVersion(); ?></p>
 <?php break;
 
 
@@ -193,35 +137,13 @@ case "finish": ?>
 <h1><img src='logo.svg' alt=''/>Congratulations!</h1>
 <hr class='separator'/>
 <p>Your forum has been installed, and it should be ready to go.</p>
-<p>Just go to your new forum and log in with the administrator account you just created.</p>
-
-<a href='javascript:toggleAdvanced()'>Show advanced information</a>
-<hr class='aboveToggle'/>
-<div id='advanced'>
-<strong>Queries run</strong>
-<pre>
-<?php if (isset($_SESSION["queries"]) and is_array($_SESSION["queries"]))
-	foreach ($_SESSION["queries"] as $query) echo sanitizeHTML($query) . ";<br/><br/>"; ?>
-</pre>
-</div>
-<script type='text/javascript'>
-// <![CDATA[
-function toggleAdvanced() {
-	toggle(document.getElementById("advanced"), {animation: "verticalSlide"});
-}
-hide(document.getElementById("advanced"));
-// ]]>
-</script>
+<p>Just go to the forum URL and log in with the administrator account you just created.</p>
 <p style='text-align:center' id='footer'><input type='submit' class='button' value='Take me to my forum!' name='finish'/></p>
 <hr class='separator'/>
-<p id='version'>Installer version <?php echo $install->getVersion(); ?></p>
+<p id='version'>Installer version <?php echo $this->getVersion(); ?></p>
 <?php break;
 
 }
 ?>
 
-</div>
 </form>
-
-</body>
-</html>

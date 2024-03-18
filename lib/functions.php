@@ -225,15 +225,16 @@ function makeLink()
 	foreach ($args as $k => $q) {
 		if ($q === []) continue;
 		// If we are using friendly URLs, append a "/" to the argument if it's not prefixed with "#", "?", or "&".
-		if (!empty($config["useFriendlyURLs"])) $link .= ($q[0] == "#" or $q[0] == "?" or $q[0] == "&") ? $q : "$q/";
+//		if (!empty($config["useFriendlyURLs"])) $link .= ($q[0] == "#" or $q[0] == "?" or $q[0] == "&") ? $q : "$q/";
+		$link .= ($q[0] == "#" or $q[0] == "?" or $q[0] == "&") ? $q : "$q/";
 		// Otherwise, convert anything not prefixed with "#", "?", or "&" to a "?q1=x" argument.
-		else {
-			if ($q[0] == "?" and $k != 0) $q[0] = "&";
-			$link .= ($q[0] == "#" or $q[0] == "?" or $q[0] == "&") ? $q : ($k == 0 ? "?" : "&") . "q" . ($k + 1) . "=$q";
-		}
+//		else {
+//			if ($q[0] == "?" and $k != 0) $q[0] = "&";
+//			$link .= ($q[0] == "#" or $q[0] == "?" or $q[0] == "&") ? $q : ($k == 0 ? "?" : "&") . "q" . ($k + 1) . "=$q";
+//		}
 	}
 	// If we're not using mod_rewrite, we need to prepend "index.php/" to the link.
-	if (!empty($config["useFriendlyURLs"]) and empty($config["useModRewrite"])) $link = "index.php/$link";
+//	if (!empty($config["useFriendlyURLs"]) and empty($config["useModRewrite"])) $link = "index.php/$link";
 	return $link;
 }
 
